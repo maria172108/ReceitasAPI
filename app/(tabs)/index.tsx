@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import Detalhes from "./Detalhes"; // Importando a tela de detalhes
 
 const StarRating = ({ rating, setRating }) => {
   return (
@@ -38,6 +40,7 @@ const HomeScreen = () => {
   const [favorites, setFavorites] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const navigation = useNavigation(); // <-- Hook de navegação
 
   useEffect(() => {
     const fetchMeals = async () => {
@@ -95,21 +98,23 @@ const HomeScreen = () => {
         data={meals}
         keyExtractor={(item) => String(item.idMeal)}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Image source={{ uri: item.strMealThumb }} style={styles.cardImage} />
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>{item.strMeal}</Text>
-              <Text style={styles.cardCategory}>{item.strCategory}</Text>
-              <StarRating
-                rating={ratings[item.idMeal] || 0}
-                setRating={(r) => handleRatingChange(item.idMeal, r)}
+          <TouchableOpacity onPress={() => navigation.navigate("Detalhes", { meal: item })}>
+            <View style={styles.card}>
+              <Image source={{ uri: item.strMealThumb }} style={styles.cardImage} />
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{item.strMeal}</Text>
+                <Text style={styles.cardCategory}>{item.strCategory}</Text>
+                <StarRating
+                  rating={ratings[item.idMeal] || 0}
+                  setRating={(r) => handleRatingChange(item.idMeal, r)}
+                />
+              </View>
+              <FavoriteButton
+                isFavorite={favorites[item.idMeal]}
+                toggleFavorite={() => toggleFavorite(item.idMeal)}
               />
             </View>
-            <FavoriteButton
-              isFavorite={favorites[item.idMeal]}
-              toggleFavorite={() => toggleFavorite(item.idMeal)}
-            />
-          </View>
+          </TouchableOpacity>
         )}
       />
     </SafeAreaView>
