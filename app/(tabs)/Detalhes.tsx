@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,12 +9,25 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons"; // Certifique-se de ter o pacote instalado
+import { Ionicons } from "@expo/vector-icons"; // Ícones já importados
 
 const Detalhes = () => {
   const route = useRoute();
   const navigation = useNavigation();
-  const { meal } = route.params;
+  
+  // Recebemos os novos parâmetros: o estado inicial e a função para alterná-lo
+  const { meal, isFavorite: initialIsFavorite, onToggleFavorite } = route.params;
+
+  // Criamos um estado local para o favorito, para que o ícone mude instantaneamente
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
+
+  // Função que será chamada ao pressionar o coração
+  const handleToggleFavorite = () => {
+    // 1. Atualiza o estado na HomeScreen através da função recebida
+    onToggleFavorite();
+    // 2. Atualiza o estado local para mudar a aparência do ícone na tela de detalhes
+    setIsFavorite((prev) => !prev);
+  };
 
   const getIngredients = (meal) => {
     const ingredients = [];
@@ -32,11 +45,22 @@ const Detalhes = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Botão de voltar */}
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Ionicons name="arrow-back" size={24} color="#fff" />
-        <Text style={styles.backText}>Voltar</Text>
-      </TouchableOpacity>
+      {/* Header com botão de voltar e de favorito */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Text style={styles.backText}>Voltar</Text>
+        </TouchableOpacity>
+
+        {/* BOTÃO DE FAVORITO ADICIONADO AQUI */}
+        <TouchableOpacity style={styles.favoriteButton} onPress={handleToggleFavorite}>
+          <Ionicons
+            name={isFavorite ? "heart" : "heart-outline"} // Muda o ícone
+            size={28}
+            color={isFavorite ? "#ff4757" : "#fff"}     // Muda a cor
+          />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView>
         <Image source={{ uri: meal.strMealThumb }} style={styles.image} />
@@ -66,15 +90,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#65001f",
   },
+  // Novo estilo para o header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
   },
   backText: {
     color: "#fff",
     fontSize: 16,
     marginLeft: 8,
+  },
+  // Novo estilo para o botão de favorito
+  favoriteButton: {
+    padding: 6,
   },
   image: {
     width: "100%",
