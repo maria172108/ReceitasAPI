@@ -1,36 +1,78 @@
-import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
   Image,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
+  Text,
   TouchableOpacity,
+  View,
 } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons"; // Ícones já importados
 
 const Detalhes = () => {
   const route = useRoute();
   const navigation = useNavigation();
   
-  // Recebemos os novos parâmetros: o estado inicial e a função para alterná-lo
-  const { meal, isFavorite: initialIsFavorite, onToggleFavorite } = route.params;
+  // RECEBEMOS APENAS O ID E AS FUNÇÕES DE CONTROLE DA TELA ANTERIOR
+  const { mealId, isFavorite: initialIsFavorite, onToggleFavorite } = route.params;
 
-  // Criamos um estado local para o favorito, para que o ícone mude instantaneamente
+  // ESTADOS ESPECÍFICOS DESTA TELA
+  const [mealDetails, setMealDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  
+  // ESTADOS PARA O BOTÃO DE FAVORITO
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Função que será chamada ao pressionar o coração
-  const handleToggleFavorite = () => {
-    // 1. Atualiza o estado na HomeScreen através da função recebida
-    onToggleFavorite();
-    // 2. Atualiza o estado local para mudar a aparência do ícone na tela de detalhes
-    setIsFavorite((prev) => !prev);
+  // FUNÇÃO PARA BUSCAR OS DETALHES DA RECEITA PELA API
+  const fetchDetails = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const response = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${mealId}`);
+      const data = await response.json();
+      if (data.meals && data.meals[0]) {
+        setMealDetails(data.meals[0]);
+      } else {
+        throw new Error("Receita não encontrada.");
+      }
+    } catch (e) {
+      console.error("Erro ao buscar detalhes da receita:", e);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [mealId]); // A função depende do mealId
+
+  // BUSCA OS DADOS QUANDO O COMPONENTE É MONTADO
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
+
+  // FUNÇÃO PARA LIDAR COM O CLIQUE NO BOTÃO DE FAVORITO
+  const handleToggleFavorite = async () => {
+    if (isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await onToggleFavorite(); // Chama a função da HomeScreen
+      setIsFavorite((prev) => !prev);
+    } catch (e) {
+      console.error("Erro ao favoritar na tela de detalhes:", e);
+      // Aqui você pode adicionar um Alert para o usuário
+    } finally {
+      setIsSaving(false);
+    }
   };
 
+  // FUNÇÃO PARA EXTRAIR INGREDIENTES (helper)
   const getIngredients = (meal) => {
     const ingredients = [];
+    if (!meal) return ingredients;
     for (let i = 1; i <= 20; i++) {
       const ingredient = meal[`strIngredient${i}`];
       const measure = meal[`strMeasure${i}`];
@@ -40,36 +82,66 @@ const Detalhes = () => {
     }
     return ingredients;
   };
+  
+  // ===================================================================
+  // RENDERIZAÇÃO CONDICIONAL (LOADING, ERROR, SUCCESS)
+  // ===================================================================
 
-  const ingredients = getIngredients(meal);
+  // 1. ESTADO DE CARREGAMENTO
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.loadingText}>Carregando detalhes...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // 2. ESTADO DE ERRO
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, styles.center]}>
+        <Ionicons name="alert-circle-outline" size={60} color="rgba(255,255,255,0.7)" />
+        <Text style={styles.errorTitle}>Erro ao Carregar</Text>
+        <Text style={styles.errorSubtitle}>Não foi possível buscar os detalhes da receita.</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchDetails}>
+          <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.backButtonError} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonErrorText}>Voltar</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  // 3. ESTADO DE SUCESSO (CONTEÚDO PRINCIPAL)
+  const ingredients = getIngredients(mealDetails);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header com botão de voltar e de favorito */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
-          <Text style={styles.backText}>Voltar</Text>
         </TouchableOpacity>
 
-        {/* BOTÃO DE FAVORITO ADICIONADO AQUI */}
-        <TouchableOpacity style={styles.favoriteButton} onPress={handleToggleFavorite}>
-          <Ionicons
-            name={isFavorite ? "heart" : "heart-outline"} // Muda o ícone
-            size={28}
-            color={isFavorite ? "#ff4757" : "#fff"}     // Muda a cor
-          />
+        <Text style={styles.headerTitle} numberOfLines={1}>{mealDetails.strMeal}</Text>
+
+        <TouchableOpacity style={styles.headerButton} onPress={handleToggleFavorite} disabled={isSaving}>
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons
+              name={isFavorite ? "heart" : "heart-outline"}
+              size={28}
+              color={isFavorite ? "#ff4757" : "#fff"}
+            />
+          )}
         </TouchableOpacity>
       </View>
 
       <ScrollView>
-        <Image source={{ uri: meal.strMealThumb }} style={styles.image} />
+        <Image source={{ uri: mealDetails.strMealThumb }} style={styles.image} />
         <View style={styles.content}>
-          <Text style={styles.title}>{meal.strMeal}</Text>
-          <Text style={styles.subtitle}>
-            {meal.strCategory} | {meal.strArea}
-          </Text>
-
           <Text style={styles.sectionTitle}>Ingredientes</Text>
           {ingredients.map((item, index) => (
             <Text key={index} style={styles.ingredient}>
@@ -78,7 +150,7 @@ const Detalhes = () => {
           ))}
 
           <Text style={styles.sectionTitle}>Modo de Preparo</Text>
-          <Text style={styles.instructions}>{meal.strInstructions}</Text>
+          <Text style={styles.instructions}>{mealDetails.strInstructions}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -90,66 +162,101 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#65001f",
   },
-  // Novo estilo para o header
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#fff',
+    fontSize: 16,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: "#ffcccc",
+    textAlign: "center",
+    marginTop: 16,
+  },
+  errorSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#fff9f5',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 25,
+  },
+  retryButtonText: {
+    color: '#65001f',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  backButtonError: {
+      marginTop: 20,
+  },
+  backButtonErrorText: {
+      color: '#fff',
+      fontSize: 16,
+      textDecorationLine: 'underline',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingVertical: 10,
+    height: 60,
   },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backText: {
-    color: "#fff",
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  // Novo estilo para o botão de favorito
-  favoriteButton: {
+  headerButton: {
     padding: 6,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginHorizontal: 10,
   },
   image: {
     width: "100%",
     height: 250,
   },
   content: {
-    padding: 16,
+    padding: 20,
     backgroundColor: "#fff9f5",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     marginTop: -20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#65001f",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#999",
-    marginBottom: 16,
+    minHeight: '100%'
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#65001f",
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   ingredient: {
-    fontSize: 15,
+    fontSize: 16,
     color: "#333",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   instructions: {
-    fontSize: 15,
+    fontSize: 16,
     color: "#333",
     marginTop: 4,
-    lineHeight: 22,
+    lineHeight: 24,
     textAlign: "justify",
   },
 });
